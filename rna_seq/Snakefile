@@ -1,0 +1,278 @@
+# Snakemake file for processing single-ended RNA-seq data with STAR
+# Using Ensembl genome, annotations and transcriptome
+
+# mamba install -c bioconda snakemake fastqc multiqc samtools bedtools star trim-galore fastq-screen drmaa qualimap
+
+
+import os
+configfile: 'config/config.yaml'
+
+# Genome file configuration
+
+ref_dir = config['ensembl_dir']
+ref_release = str(config['reference']['release'])
+ref_path = config['reference']['genome_path']
+ref_name = config['reference']['genome_name']
+ref_suffix = config['reference']['genome_suffix']
+
+# Remote
+
+ftp_base = ref_dir + ref_release
+ftp_fasta_dir = ftp_base + '/fasta/' + ref_path
+ftp_gtf_dir = ftp_base + '/gtf/' + ref_path
+
+genome_file_name = ref_name + ref_suffix
+gtf_file_name = ref_name + '.' + ref_release + '.gtf'
+
+genome_url =  ftp_fasta_dir + '/dna/' + genome_file_name + '.gz'
+gtf_url =  ftp_gtf_dir + '/' + gtf_file_name + '.gz'
+
+# Local
+
+genome_dir = 'genome'
+
+genome_file = os.path.join(genome_dir, genome_file_name)
+gtf_file = os.path.join(genome_dir, gtf_file_name)
+
+genome_index = genome_file + '.fai'
+genome_size_file = genome_file + '.txt'
+
+# Fastq Screen config file
+fscreen_config = config['fastq_screen_config']
+
+# Files to test if an index was created
+star_index_dir = 'star_index'
+star_index_test_file = os.path.join(star_index_dir, 'chrName.txt')
+
+# Create directories for Qualimap
+def make_dirs(dname):
+    if not os.path.exists(dname):
+        os.makedirs(dname)
+
+make_dirs('qm/bamqc')
+make_dirs('qm/rnaseq')
+
+
+# Read samples from a file
+with open(config['samples']) as f:
+    SAMPLES = f.read().splitlines()
+
+
+# Lists for rule all
+
+QCS = expand('qc/{sample}_fastqc.html', sample = SAMPLES)
+QMS = expand('qm/bamqc/{sample}/genome_results.txt', sample = SAMPLES) + \
+      expand('qm/rnaseq/{sample}/rnaseq_qc_results.txt', sample = SAMPLES)
+FSCREENS = expand('fscreen/{sample}_screen.txt', sample = SAMPLES)
+MULTIQC = ['multiqc/report.html']
+BAMS = expand('bam/{sample}.bam', sample = SAMPLES)
+BAIS = expand('bam/{sample}.bam.bai', sample = SAMPLES)
+COUNTS = expand('readcount/{sample}.txt', sample = SAMPLES)
+CHRSTATS = expand('chrcount/{sample}.txt', sample = SAMPLES)
+
+####################################################################
+
+rule all:
+    input: QCS + QMS + CHRSTATS + MULTIQC + COUNTS
+
+
+
+####################################################################
+# Trim adapter sequences. As input files do not follow {sample}-{pair} naming convention,
+# we cannot use {pair} wildcards here.
+
+rule trim_adapters:
+    input: 'fastq/{sample}.fastq.gz'
+    output:
+        fastq = 'fastq_trimmed/{sample}.fastq.gz',
+        report = 'fastq_trimmed/{sample}_trimming_report.txt',
+    threads: 4
+    shell:
+        '''
+        mkdir -p fastq_trimmed
+        trim_galore --cores {threads} --output_dir $TMPDIR/fastq_trimmed {input}
+        mv $TMPDIR/fastq_trimmed/{wildcards.sample}_trimmed.fq.gz {output.fastq}
+        mv $TMPDIR/fastq_trimmed/{wildcards.sample}.fastq.gz_trimming_report.txt {output.report}
+        '''
+        
+####################################################################
+# Quality control
+
+rule fastqc:
+    input: 'fastq_trimmed/{sample}.fastq.gz'
+    output:
+        html = 'qc/{sample}_fastqc.html',
+        zip = 'qc/{sample}_fastqc.zip'
+    threads: 2
+    shell:
+        'fastqc -o qc --threads {threads} -f fastq {input}'
+
+####################################################################
+# Fastq Screen
+#   genomes must be installed manually: fastq_screen --get_genomes
+#   and config file prepared
+
+rule fastq_screen:
+    input: 'fastq_trimmed/{sample}.fastq.gz'
+    output:
+        html = 'fscreen/{sample}_screen.html',
+        txt = 'fscreen/{sample}_screen.txt'
+    threads: 12
+    shell:
+        '''
+        fastq_screen --conf {fscreen_config} --outdir $TMPDIR/fscreen --threads {threads} {input}
+        mv $TMPDIR/fscreen/{wildcards.sample}_screen.html {output.html}
+        mv $TMPDIR/fscreen/{wildcards.sample}_screen.txt {output.txt}
+        '''
+
+
+####################################################################
+# Final multiqc from fastqc and fast_screen
+
+rule multiqc:
+    input:
+        fscreen = FSCREENS,
+        qc = QCS,
+        qm = QMS,
+        star = expand('starmap/{sample}_Log.final.out', sample = SAMPLES),
+        trimmed = expand('fastq_trimmed/{sample}_trimming_report.txt', sample = SAMPLES)
+    output: 'multiqc/report.html'
+    shell:
+        'multiqc -f --filename report --outdir multiqc fastq_trimmed qc fscreen starmap qm/bamqc qm/rnaseq'
+
+
+####################################################################
+# Load genome files
+
+rule load_genome:
+    output: genome_file
+    shell:
+        'wget {genome_url} -O - | gunzip -c > {genome_file}'
+
+rule load_and_merge_gtf:
+    output: gtf_file
+    shell:
+        'wget {gtf_url} -O - | gunzip -c > {gtf_file}'
+
+####################################################################
+# Index genome, create chromosome size file
+
+rule index_genome:
+    input: genome_file
+    output: genome_index
+    shell:
+        'samtools faidx {input}'
+
+rule size_genome:
+    input: genome_index
+    output: genome_size_file
+    shell:
+        'cut -f 1,2 {input} > {output}'
+
+####################################################################
+# STAR
+# Mapping parameters were modified according to Lexogen tutorial
+
+rule star_index:
+    input:
+      fasta = genome_file,
+      gtf = gtf_file
+    output: star_index_test_file
+    threads: 24
+    shell:
+        '''
+        STAR \
+        --runMode genomeGenerate \
+        --genomeFastaFiles {input.fasta} \
+        --sjdbGTFfile {input.gtf} \
+        --outTmpDir $TMPDIR/star_index \
+        --genomeDir {star_index_dir} \
+        --genomeSAindexNbases 12 \
+        --runThreadN {threads}
+        '''
+
+
+rule star_mapping:
+    input:
+        fastq = 'fastq_trimmed/{sample}.fastq.gz',
+        testfile = star_index_test_file,
+        gtf = gtf_file
+    output:
+        bam = 'bam/{sample}.bam',
+        readcount = 'readcount/{sample}.txt',
+        finallog = 'starmap/{sample}_Log.final.out'
+    threads: 12
+    shell:
+        '''
+         STAR \
+         --genomeDir {star_index_dir} \
+         --sjdbGTFfile {input.gtf} \
+         --readFilesIn {input.fastq} \
+         --outTmpDir $TMPDIR/starmap_tmp \
+         --outFileNamePrefix $TMPDIR/starmap/{wildcards.sample}_ \
+         --outSAMtype BAM SortedByCoordinate \
+         --outFilterType BySJout \
+         --outFilterMultimapNmax 2 \
+         --readFilesCommand zcat \
+         --outReadsUnmapped Fastx \
+         --quantMode GeneCounts \
+         --runThreadN {threads}
+         mv $TMPDIR/starmap/{wildcards.sample}_Aligned.sortedByCoord.out.bam {output.bam}
+         mv $TMPDIR/starmap/{wildcards.sample}_ReadsPerGene.out.tab {output.readcount}
+         mv $TMPDIR/starmap/{wildcards.sample}_Log.final.out {output.finallog}
+        '''
+
+
+####################################################################
+# Index BAM files
+
+rule index_bam:
+    input: 'bam/{sample}.bam'
+    output: 'bam/{sample}.bam.bai'
+    threads: 8
+    shell:
+        'samtools index {input}'
+
+
+####################################################################
+# Counts per chromosome
+
+rule chr_counts:
+    input: 
+      bam = 'bam/{sample}.bam',
+      bai = 'bam/{sample}.bam.bai'
+    output: 'chrcount/{sample}.txt'
+    threads: 8
+    shell:
+        'samtools idxstats {input.bam} > {output}'
+
+####################################################################
+# Qualimap
+
+rule qualimap_bamqc:
+    input:
+        bam = 'bam/{sample}.bam',
+        bai = 'bam/{sample}.bam.bai'
+    output: 'qm/bamqc/{sample}/genome_results.txt'
+    threads: 8
+    shell:
+        '''
+        rm -fR qm/bamqc/{wildcards.sample}
+        qualimap bamqc -nt {threads} -bam {input.bam} -outdir qm/bamqc/{wildcards.sample}
+        '''
+
+rule qualimap_rnaseq:
+    input:
+        bam = 'bam/{sample}.bam',
+        bai = 'bam/{sample}.bam.bai',
+        gtf = gtf_file
+    output: 'qm/rnaseq/{sample}/rnaseq_qc_results.txt'
+    params:
+        mem = '16G',
+    shell:
+        '''
+        rm -fR qm/rnaseq/{wildcards.sample}
+        qualimap rnaseq --paired -bam {input.bam} -gtf {input.gtf} -outdir qm/rnaseq/{wildcards.sample} --java-mem-size={params.mem}
+        '''
+
+

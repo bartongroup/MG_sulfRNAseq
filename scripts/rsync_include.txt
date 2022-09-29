@@ -1,0 +1,9 @@
+fscreen/*.txt
+qc/*.zip
+multiqc/*.html
+readcount/*.txt
+chrcount/*.txt
+starmap/*.final.out
+fastq_screen.conf
+Snakefile
+config/*

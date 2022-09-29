@@ -1,0 +1,12 @@
+ensembl_dir: ftp://ftp.ensembl.org/pub/release-
+
+fastq_screen_config: config/fastq_screen.conf
+
+reference:
+    release: 107
+    genome_path: homo_sapiens
+    genome_name: Homo_sapiens.GRCh38
+    genome_suffix: .dna.primary_assembly.fa
+    
+samples: config/samples.txt
+ 

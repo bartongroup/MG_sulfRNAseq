@@ -1,0 +1,15 @@
+.DS_Store
+.Rproj.user
+.Rhistory
+.RData
+.Ruserdata
+renv/
+_targets/
+doc/*
+!doc/_targets.yaml
+!doc/analysis.Rmd
+cache/
+rna_seq/*
+!rna_seq/fastq_screen.conf
+!rna_seq/Snakefile
+!rna_seq/config/
