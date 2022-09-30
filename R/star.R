@@ -65,6 +65,7 @@ parse_one_star_count <- function(file, smpl, column = 2, fix_names_fun = NULL) {
   if (!is.null(fix_names_fun)) {
     d <- d |> mutate(gene_id = fix_names_fun(gene_id))
   }
+  d
 }
 
 # Parse all star count files. Returns a list of tab (wide matrix) and dat (long tibble).
@@ -197,8 +198,7 @@ normalize_star_counts <- function(set, gene_info) {
   set |> 
     normalise_to_library(gene_info, libsize) |> 
     #normalise_edger() |> 
-    regularised_log() |> 
-    normalise_to_wt()
+    regularised_log()
 }
 
 

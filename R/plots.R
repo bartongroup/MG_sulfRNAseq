@@ -1,8 +1,8 @@
 okabe_ito_palette <- c("#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7", "#AAAAAA", "#000000")
 
 gs <- function(gg, name, width, height) {
-  ggsave(filename = file.path("fig", paste0(name, ".png")), plot = gg, device = "png",
-         width = width, height = height, dpi = 300)
+  ggplot2::ggsave(filename = file.path("fig", paste0(name, ".png")), plot = gg, device = "png",
+         width = width, height = height, dpi = 300, limitsize = FALSE)
 }
 
 
@@ -13,15 +13,16 @@ plot_volma <- function(res, p, fdr, fc, group, point_size, point_alpha) {
       group = get(group)
     ) |> 
     select(x, y, sig, group)
+  rsel <- r |> filter(sig)
   rm(res)  # Minimise environment for serialisation
-  ggplot(r, aes(x = x, y = y, colour = sig)) +
+  ggplot(r, aes(x = x, y = y)) +
     theme_bw() +
     theme(
       panel.grid = element_blank(),
       legend.position = "none"
     ) +
-    geom_point(size = point_size, alpha = point_alpha) +
-    scale_colour_manual(values = c("grey70", "black")) +
+    geom_point(size = point_size, alpha = point_alpha, colour = "grey80") +
+    geom_point(data = rsel, colour = "black") +
     facet_grid(. ~ group) 
 }
 
@@ -457,8 +458,7 @@ plot_gene_groups <- function(set, gid, val = "count_norm", log.scale = FALSE, nc
   dm <- d |> 
     group_by(gene_symbol, group) |> 
     summarise(M = mean(value))
-  
-  
+
   g <- ggplot(d, aes(x = group, y = value, fill = as.factor(replicate), shape = zero)) +
     theme_bw() +
     theme(
@@ -468,7 +468,7 @@ plot_gene_groups <- function(set, gid, val = "count_norm", log.scale = FALSE, nc
     geom_beeswarm(size = symbol.size, cex = cex) +
     geom_point(data = dm, aes(x = group, y = M), shape = 3, size = 5, colour = "black", fill = "black") +
     labs(x = NULL, y = ylab, fill = "Replicate") +
-    facet_wrap(~gene_symbol, scales = "free_y", ncol = ncol) +
+    facet_wrap(~gene_symbol, labeller = label_wrap_gen(), scales = "free_y", ncol = ncol) +
     scale_shape_manual(values = c(21,23)) +
     guides(fill = guide_legend(override.aes = list(shape = 21))) +
     scale_fill_manual(values = okabe_ito_palette)
@@ -672,4 +672,61 @@ plot_network <- function(edges, clr, min_weight = 0.8) {
     opacityNoHover = 1,
     zoom = TRUE
   )
+}
+
+plot_volcano_term <- function(res, gso, termids, ncol = 3) {
+  d <- res |> 
+    mutate(
+      x = logFC,
+      y = -log10(PValue)
+    ) |> 
+    select(gene_id, gene_symbol, x, y)
+  
+  termids <- intersect(termids, unique(gso$term_id))
+  
+  dat <- map_dfr(termids, function(termid) {
+    gns <- gso |> 
+      filter(term_id %in% termid) |> 
+      pull(leading_edge) |> 
+      unlist()
+    termname <- gso |> 
+      filter(term_id == termid) |> 
+      pull(term_name)
+    term <- str_glue("{termid}: {termname}")
+    
+    d |> 
+      mutate(sel = gene_id %in% gns) |> 
+      add_column(term = term)
+  })
+  
+  sel <- dat |> 
+    filter(sel)
+  
+  
+  ggplot(dat, aes(x = x, y = y)) +
+    theme_bw() +
+    theme(
+      panel.grid = element_blank()
+    ) +
+    geom_hline(yintercept = 0, colour = "darkgreen") +
+    geom_vline(xintercept = 0, colour = "darkgreen") +
+    geom_point(colour = "grey80", size = 0.5) +
+    geom_point(data = sel, colour = "black", size = 1) +
+    geom_text_repel(data = sel, aes(label = gene_symbol)) +
+    facet_wrap(~ term, labeller = label_wrap_gen(), ncol = ncol) +
+    labs(x = expression(log[2]~FC), y = expression(-log[10]~P))
+}
+
+
+plot_volcano_house <- function(res, house) {
+  classes <- unique(house$class)
+  map_dfr(classes, function(cl) {
+    h <- filter(house, class == cl)
+    res |> 
+      mutate(
+        contrast = cl,
+        sig = gene_symbol %in% h$gene_symbol
+      )
+  }) |> 
+    plot_volcano()
 }

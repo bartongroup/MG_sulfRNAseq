@@ -55,8 +55,27 @@ split_genes_fgsea <- function(se, fg, groupvar = "contrast") {
     })
 }
 
-select_star_go <- function(se, bm_go, terms) {
-  bm_go$gene2term |> 
-    filter(term_id %in% terms) |> 
-    inner_join(se, by = "gene_id")
+
+gsea_de <- function(gse, res, fdr_limit = 0.01) {
+  sig_genes <- res |> 
+    filter(sig) |> 
+    pull(gene_id)
+  ontologies <- names(gse)
+  map_dfr(ontologies, function(ont) {
+    gse[[ont]] |> 
+      filter(padj < fdr_limit) |> 
+      unnest(leading_edge) |> 
+      filter(leading_edge %in% sig_genes) |> 
+      rename(gene_id = leading_edge) |> 
+      left_join(res, by = "gene_id") |> 
+      select(term_id, term_name, NES, padj, gene_id, gene_symbol, logFC, logCPM, PValue, FDR) |> 
+      add_column(ontology = ont, .before = 1)
+  })
+}
+
+
+get_terms_str <- function(gso, query, fdr_limit = 0.05) {
+  gso |> 
+    filter(str_detect(term_name, query) & padj < fdr_limit) |>
+    pull(term_id)
 }

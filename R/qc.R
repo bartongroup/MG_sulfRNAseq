@@ -144,3 +144,14 @@ read_fastq_headers <- function(file) {
     group_by(raw_sample) |> 
     summarise(flow_cell = first(flow_cell) |> as_factor(), accession = first(accession) |> as.factor())
 }
+
+
+read_houskeeping_genes <- function(path, classes = c("Ribosomal", "Citric", "RNA")) {
+  map_dfr(classes, function(cl) {
+    file <- file.path(path, str_glue("protein_class_{cl}.tsv"))
+    stopifnot(file.exists(file))
+    read_tsv(file, show_col_types = FALSE) |>
+      select(gene_symbol = Gene) |>
+      add_column(class = cl, .before = 1)
+  })
+}
