@@ -27,7 +27,7 @@ targets_main <- function() {
     tar_target(fig_fscreen_sample, plot_fscreen_sample(fscreen, EXAMPLE)),
     tar_target(fig_read_qual, plot_qualities(qcs)),
     tar_target(fig_read_qual_clust, plot_cluster_qualities(qcs)),
-    # tar_target(fig_chrom_proportion, plot_chrom_proportion(idxstats)),
+    tar_target(fig_chrom_proportion, plot_chrom_proportion(idxstats, CHROMOSOMES)),
     
     tar_target(fig_star_log, plot_star_log(star$star_log, metadata)),
     tar_target(fig_star_log_map, plot_star_log_map(star$star_log, metadata)),
@@ -58,6 +58,10 @@ targets_main <- function() {
     tar_target(fig_umap, plot_umap(star, n_neighbours = 5, min_dist = 0.1, colour_var = "treatment", shape_var = "replicate"))
   )
   
+  per_donor <- list(
+    tar_target(lograt, make_lograt_donors(star))
+  )
+  
   # differential expression
   differential_expression <- list(
     # DE pairwise group
@@ -76,17 +80,25 @@ targets_main <- function() {
     # DE figures
     tar_target(fig_updown, plot_up_down(edger)),
     tar_target(fig_volcano, plot_volcano(edger)),
-    tar_target(fig_ma, plot_ma(edger))
+    tar_target(fig_ma, plot_ma(edger)),
+    
+    # lograt
+    tar_target(edger_lr, limma_de_ratio(lograt, gns, fdr_limit = 0.01, logfc_limit = 0)),
+    tar_target(fig_volcano_lr, plot_volcano(edger_lr))
+
   )
   
   set_enrichment <- list(
     tar_target(gse, fgsea_all_terms(edger, fterms)),
     tar_target(gse_all, map_dfr(gse, identity)),
-    tar_target(gse_edger, gsea_de(gse, edger))
-
-    # tar_target(fig_fg_example_go_0030476, plot_fgsea_enrichment("GO:0030476", edger_sel |> filter(contrast == "Tfe2_60-WT_60"), fterms$go)),
+    tar_target(gse_edger, gsea_de(gse, edger)),
+    
+    tar_target(gse_lr,  fgsea_all_terms(edger_lr, fterms)),
+    tar_target(gse_lr_all, map_dfr(gse_lr, identity)),
+    tar_target(gse_lr_edger, gsea_de(gse_lr, edger_lr))
   )
-  
+
+
   for_report <- list(
     tar_target(fig_volcano_house, plot_volcano_house(edger, house)),
     
@@ -94,6 +106,7 @@ targets_main <- function() {
     tar_target(fig_genes, plot_gene_groups(star, genes_of_interest, ncol = 4)),
     
     tar_target(gse_tab, gse_edger |> group_by(term_id, term_name, NES) |> summarise(genes = str_c(gene_symbol, collapse = ", ")) |> arrange(NES) |> ungroup()),
+    tar_target(gse_lr_tab, gse_lr_edger |> group_by(term_id, term_name, NES) |> summarise(genes = str_c(gene_symbol, collapse = ", ")) |> arrange(NES) |> ungroup()),
     
     tar_target(terms_cytokine, get_terms_str(gse_all, "[Cc]ytokine")),
     tar_target(terms_interleukin, get_terms_str(gse_all, "[Ii]nterleukin")),
@@ -116,7 +129,7 @@ targets_main <- function() {
   wgcna <- list(
     tar_target(co_tab, wgcna_prepare(star)),
     tar_target(co_power, wgcna_thresholds(co_tab)),
-    tar_target(co_net, wgcna_net(co_tab, power = 12)),
+    tar_target(co_net, wgcna_net(co_tab, power = 12, max_block_size = 10000)),
     tar_target(co_enr, wgcna_colour_enrichment(co_net, fterms, gene2name)),
     tar_target(co_edges, wgcna_network(co_tab, co_net, star$genes)),
     tar_target(test_net, plot_network(co_edges, 1))
@@ -142,7 +155,8 @@ targets_main <- function() {
     count_properties,
     differential_expression,
     set_enrichment,
-    #wgcna,
+    per_donor,
+    wgcna,
     make_tables,
     for_report,
     info

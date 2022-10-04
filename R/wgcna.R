@@ -1,7 +1,7 @@
 wgcna_prepare <- function(set) {
 
   # WGCNA prefers genes in columns
-  tab <- t(dat2mat(set$dat, what = "rlog"))
+  tab <- t(dat2mat(set$dat |> filter(good), what = "rlog"))
 
   # select good genes
   gsg <- WGCNA::goodSamplesGenes(tab)

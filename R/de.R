@@ -202,3 +202,39 @@ plot_compare_top_genes <- function(res1, res2, max.k = 50) {
     facet_wrap(~contrast, nrow = 1) +
     labs(x = "Gene rank", y = "Genes in common")
 }
+
+
+
+# one-sample limma against zero
+limma_de_ratio <- function(df, gene_info,  what = "lograt", fdr_limit = 0, logfc_limit = 0.05) {
+  genes <- gene_info |> 
+    select(gene_id, gene_symbol, gene_biotype, description) |> 
+    distinct()
+  
+  meta <- df$metadata
+
+  tab <- dat2mat(df$dat, what = what)
+  tab <- tab[, as.character(meta$sample)]
+  
+  design_mat <- cbind(Intercept = rep(1, ncol(tab)))
+  fit <- tab |>
+    limma::lmFit(design_mat) |>
+    limma::eBayes()
+  
+  res <- limma::topTable(fit, number = 1e6, sort.by = "none") |>
+    as_tibble(rownames = "gene_id") |>
+    rename(FDR = adj.P.Val, PValue = P.Value) |>
+    select(-c(t, B)) |> 
+    add_column(contrast = "ratio") |> 
+    drop_na() |> 
+    left_join(genes, by = "gene_id") |> 
+    mutate(
+      gene_symbol = if_else(is.na(gene_symbol), gene_id, gene_symbol),
+      logCPM = 0,
+      sig = FDR < fdr_limit & abs(logFC) > logfc_limit
+    )
+  
+  
+  res
+}
+

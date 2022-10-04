@@ -44,15 +44,6 @@ fscreen_config = config['fastq_screen_config']
 star_index_dir = 'star_index'
 star_index_test_file = os.path.join(star_index_dir, 'chrName.txt')
 
-# Create directories for Qualimap
-def make_dirs(dname):
-    if not os.path.exists(dname):
-        os.makedirs(dname)
-
-make_dirs('qm/bamqc')
-make_dirs('qm/rnaseq')
-
-
 # Read samples from a file
 with open(config['samples']) as f:
     SAMPLES = f.read().splitlines()
@@ -73,7 +64,7 @@ CHRSTATS = expand('chrcount/{sample}.txt', sample = SAMPLES)
 ####################################################################
 
 rule all:
-    input: QCS + QMS + CHRSTATS + MULTIQC + COUNTS
+    input: CHRSTATS + MULTIQC + COUNTS
 
 
 
@@ -132,13 +123,11 @@ rule fastq_screen:
 rule multiqc:
     input:
         fscreen = FSCREENS,
-        qc = QCS,
-        qm = QMS,
         star = expand('starmap/{sample}_Log.final.out', sample = SAMPLES),
         trimmed = expand('fastq_trimmed/{sample}_trimming_report.txt', sample = SAMPLES)
     output: 'multiqc/report.html'
     shell:
-        'multiqc -f --filename report --outdir multiqc fastq_trimmed qc fscreen starmap qm/bamqc qm/rnaseq'
+        'multiqc -f --filename report --outdir multiqc fastq_trimmed qc fscreen starmap'
 
 
 ####################################################################
@@ -257,6 +246,8 @@ rule qualimap_bamqc:
     threads: 8
     shell:
         '''
+        mkdir -p qm
+        mkdir -p qm/bamqc
         rm -fR qm/bamqc/{wildcards.sample}
         qualimap bamqc -nt {threads} -bam {input.bam} -outdir qm/bamqc/{wildcards.sample}
         '''
@@ -271,6 +262,8 @@ rule qualimap_rnaseq:
         mem = '16G',
     shell:
         '''
+        mkdir -p qm
+        mkdir -p qm/rnaseq
         rm -fR qm/rnaseq/{wildcards.sample}
         qualimap rnaseq --paired -bam {input.bam} -gtf {input.gtf} -outdir qm/rnaseq/{wildcards.sample} --java-mem-size={params.mem}
         '''

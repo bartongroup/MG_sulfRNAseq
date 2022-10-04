@@ -89,16 +89,6 @@ parse_star_counts <- function(paths, meta, column = 2, suffix = ".txt", fix_name
 }
 
 
-parse_idxstats <- function(paths, meta) {
-  path <- paths$chrcount
-  map2_dfr(meta$raw_sample, meta$sample, function(rsam, sam) {
-    sfile <- file.path(path, glue::glue("{rsam}.txt"))
-    if (file.exists(sfile)) {
-    read_tsv(sfile, col_names = c("chr", "length", "count", "unmapped"), show_col_types = FALSE) |> 
-      add_column(raw_sample = rsam, sample = sam)
-    }
-  })
-}
 
 
 add_gene_names <- function(set, gene_info) {
@@ -408,18 +398,6 @@ plot_map_qual <- function(qc, slog, base = 20) {
 }
 
 
-denoise_star <- function(set, id_col = "gene_id") {
-  tab_nr <- noisyr::noisyr(approach.for.similarity.calculation = "counts", expression.matrix = set$tab)
-  dat <- tab_nr |> 
-    as_tibble(rownames = "id") |> 
-    pivot_longer(-id, names_to = "sample", values_to = "count") |> 
-    rename(!!id_col := id)
-  list(
-    dat = dat,
-    tab = tab_nr,
-    metadata = set$metadata
-  )
-}
 
 
 
@@ -507,21 +485,6 @@ plot_mapped_count <- function(set) {
     labs(x = NULL, y = "Read count (millions)", colour = "Legend")
 }
 
-
-plot_chrom_proportion <- function(ids) {
-  ids |>
-    # filter(chr %in% CHROMOSOMES) |>
-    mutate(frac = count / (length )) |> 
-    # mutate(chr = factor(chr, levels = CHROMOSOMES)) |> 
-  ggplot(aes(x = chr, y = frac)) +
-    theme_bw() +
-    theme(
-      panel.grid = element_blank()
-    ) +
-    geom_col() +
-    scale_y_continuous(expand = expansion(mult = c(0, 0.03))) +
-    labs(x = "Chromosome", y = "Counts per chromosome length")
-}
 
 plot_ribo_fraction <- function(ids, ribochr = "BK000964.3") {
   ids |> 

@@ -155,3 +155,32 @@ read_houskeeping_genes <- function(path, classes = c("Ribosomal", "Citric", "RNA
       add_column(class = cl, .before = 1)
   })
 }
+
+parse_idxstats <- function(paths, meta) {
+  path <- paths$chrcount
+  map2_dfr(meta$raw_sample, meta$sample, function(rsam, sam) {
+    sfile <- file.path(path, glue::glue("{rsam}.txt"))
+    if (file.exists(sfile)) {
+      read_tsv(sfile, col_names = c("chr", "length", "count", "unmapped"), show_col_types = FALSE) |> 
+        add_column(raw_sample = rsam, sample = sam)
+    }
+  })
+}
+
+plot_chrom_proportion <- function(ids, chromosomes) {
+  ids |>
+    filter(chr %in% chromosomes) |>
+    mutate(frac = count / (length / 1000)) |> 
+    mutate(chr = factor(chr, levels = chromosomes)) |> 
+    ggplot(aes(x = chr, y = frac)) +
+    theme_bw() +
+    theme(
+      panel.grid = element_blank()
+    ) +
+    geom_col() +
+    facet_wrap(~ sample, ncol = 1, scales = "free_y") +
+    scale_y_continuous(expand = expansion(mult = c(0, 0.03))) +
+    labs(x = "Chromosome", y = "Counts per kb of chromosome")
+}
+
+
