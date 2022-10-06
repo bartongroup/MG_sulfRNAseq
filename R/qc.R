@@ -5,8 +5,7 @@ parse_one_fscreen <- function(file, raw_sample) {
 }
 
 
-parse_fscreens <- function(paths, meta, suffix = "_R1_screen.txt") {
-  path <- paths$fscreen
+parse_fscreens <- function(path, meta, suffix = "_R1_screen.txt") {
   meta$raw_sample |> 
     map_dfr(~parse_one_fscreen(file.path(path, paste0(.x, suffix)), .x)) |> 
     left_join(select(meta, raw_sample, sample), by = "raw_sample")
@@ -48,6 +47,7 @@ make_roots_paired <- function(meta, suffix = "_R") {
   tibble(
     root = c(roots_1, roots_2),
     raw_sample = rep(meta$raw_sample, 2),
+    sample = rep(meta$sample, 2),
     pair = c(rep(1, nrow(meta)), rep(2, nrow(meta))) |> as_factor()
   )
 }
@@ -58,6 +58,7 @@ make_roots_single <- function(meta) {
   tibble(
     root = roots,
     raw_sample = meta$raw_sample,
+    sample = meta$sample,
     pair = rep(1, nrow(meta)) |> as_factor()
   )
 }
@@ -80,13 +81,12 @@ parse_one_qc <- function(zip_file, root) {
     mutate(root = root)
 }
 
-parse_qcs <- function(paths, meta, paired, suffix = "_fastqc.zip") {
+parse_qcs <- function(path, meta, paired, suffix = "_fastqc.zip") {
   if (paired) {
     roots <-  make_roots_paired(meta)
   } else {
     roots <-  make_roots_single(meta)
   }
-  path <- paths$qc
   roots$root |> 
     map_dfr(~parse_one_qc(file.path(path, paste0(.x, suffix)), .x)) |> 
     left_join(roots, by = "root")
@@ -156,8 +156,7 @@ read_houskeeping_genes <- function(path, classes = c("Ribosomal", "Citric", "RNA
   })
 }
 
-parse_idxstats <- function(paths, meta) {
-  path <- paths$chrcount
+parse_idxstats <- function(path, meta) {
   map2_dfr(meta$raw_sample, meta$sample, function(rsam, sam) {
     sfile <- file.path(path, glue::glue("{rsam}.txt"))
     if (file.exists(sfile)) {

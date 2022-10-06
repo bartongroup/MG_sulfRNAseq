@@ -8,7 +8,7 @@ KEGG_SPECIES <- "hsa"
 GO_SPECIES <- "goa_human"
 REACTOME_SPECIES <- "Homo sapiens"
 
-EXAMPLE <- "WT_0_1"
+EXAMPLE <- "CTRL-1"
 
 LOGFC_LIMIT <- 1
 FDR_LIMIT <- 0.01

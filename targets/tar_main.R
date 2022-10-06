@@ -18,9 +18,9 @@ targets_main <- function() {
 
   # quality control
   qc <- list(
-    tar_target(fscreen, parse_fscreens(rnaseq_dirs, metadata, suffix = "_screen.txt")),
-    tar_target(qcs, parse_qcs(rnaseq_dirs, metadata, paired = FALSE)),
-    tar_target(idxstats, parse_idxstats(rnaseq_dirs, metadata)),
+    tar_target(fscreen, parse_fscreens(rnaseq_dirs$fscreen, metadata, suffix = "_screen.txt")),
+    tar_target(qcs, parse_qcs(rnaseq_dirs$qc, metadata, paired = FALSE)),
+    tar_target(idxstats, parse_idxstats(rnaseq_dirs$chrcount, metadata)),
     tar_target(tab_star_log, star$star_log),
     
     tar_target(fig_fscreen, plot_fscreen_map(fscreen)),
@@ -156,7 +156,7 @@ targets_main <- function() {
     differential_expression,
     set_enrichment,
     per_donor,
-    wgcna,
+    #wgcna,
     make_tables,
     for_report,
     info

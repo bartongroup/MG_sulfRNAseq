@@ -218,7 +218,7 @@ plot_star_log <- function(slog, meta,
     geom_point() +
     facet_grid(~key, scales = "free") +
     coord_flip() +
-    scale_y_continuous(expand = c(0, 0)) +
+    scale_y_continuous(expand = c(0, 0), labels = scientific_10) +
     geom_text(aes(y = value * 1.05, label = "")) # blank geom to expand axis
 }
 
@@ -350,7 +350,7 @@ plot_qualities <- function(qc) {
 
 plot_cluster_qualities <- function(qc, text.size = 10) {
   tab <- qc |> 
-    pivot_wider(id_cols = c(pair, Base), names_from = raw_sample, values_from = Mean) |> 
+    pivot_wider(id_cols = c(pair, Base), names_from = sample, values_from = Mean) |> 
     select(-c(pair, Base)) |> 
     as.matrix()
   
