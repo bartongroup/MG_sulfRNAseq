@@ -10,6 +10,7 @@ doc/*
 !doc/analysis.Rmd
 cache/
 rna_seq/*
+!rna_seq/info/
 !rna_seq/fastq_screen.conf
 !rna_seq/Snakefile
 !rna_seq/config/

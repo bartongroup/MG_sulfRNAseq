@@ -1,3 +1,4 @@
+info/*
 fscreen/*.txt
 qc/*.zip
 multiqc/*.html
