@@ -7,3 +7,4 @@ starmap/*.final.out
 fastq_screen.conf
 Snakefile
 config/*
+*.sh
