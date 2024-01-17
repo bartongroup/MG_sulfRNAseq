@@ -1,6 +1,6 @@
 # Re-analysis of L-SFN-treated PBMC mRNAseq data
 
-Software to accompany the manuscript of Long et al.
+Software to accompany the manuscript of Long et al., "SFX-01 in hospitalised patients with community-acquired pneumonia during the COVID19 pandemic: a double-blind, randomised, placebo-controlled trial", *ERJ Open Research* (2024).
 
 ## Usage
 
